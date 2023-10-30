@@ -1,21 +1,37 @@
 const { v4: uuidv4 } = require('uuid');
-const archiver = require('archiver');
-function compressFiles(files, format) {
+const fs = require('fs');
+const path = require('path');
+const { exec } = require('child_process');
+
+function compressFiles(files) {
     return new Promise((resolve, reject) => {
-        const archive = archiver(format, {
-            zlib: { level: 9 } // Sets the compression level.
+      
+        const tempFilePath = path.join(__dirname, `temp.7z`); 
+
+        // Save the files with their original names
+        files.forEach((file) => {
+            fs.writeFileSync(file.originalname, file.buffer);
         });
-        const outputBuffers = [];
 
-        archive.on('data', (data) => outputBuffers.push(data));
-        archive.on('end', () => resolve(Buffer.concat(outputBuffers)));
-        archive.on('error', (err) => reject(err));
+        // Create a list of files to compress using their original names
+        const fileList = files.map(file => `"${file.originalname}"`).join(' ');
 
-        for (let file of files) {
-            archive.append(file.buffer, { name: file.originalname });
-        }
+        // Run 7zip command with maximum compression
+        exec(`7z a -mx=9 ${tempFilePath} ${fileList}`, (error) => {
+            if (error) {
+                reject(error);
+                return;
+            }
 
-        archive.finalize();
+            const compressedBuffer = fs.readFileSync(tempFilePath);
+            resolve(compressedBuffer);
+
+            // Clean up temporary files
+            fs.unlinkSync(tempFilePath);
+            files.forEach((file) => {
+                fs.unlinkSync(file.originalname);
+            });
+        });
     });
 }
 
@@ -44,11 +60,6 @@ function format(timestamp) {
     // Format as dd/mm/yyyy hh:mm:ss
     return `${day},${month},${year} ${hours}:${minutes}:${seconds}`;
 }
-
-
-
-
-
 
 module.exports = {
     compressFiles,

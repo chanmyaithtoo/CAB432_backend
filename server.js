@@ -103,14 +103,14 @@ app.post("/login", async (req, res) => {
 
 const uploadValidations = [
   check("username").notEmpty().withMessage("Username is required"),
-  check("format")
-    .isIn(["zip", "tar"])
-    .withMessage("Invalid compression format"),
-  check("desiredFileName")
-    .notEmpty()
-    .withMessage("File name is required")
-    .matches(/\.(zip|tar)$/)
-    .withMessage("File name should end with .zip or .tar"),
+  // check("format")
+  //   .isIn(["zip", "tar"])
+  //   .withMessage("Invalid compression format"),
+  // check("desiredFileName")
+  //   .notEmpty()
+  //   .withMessage("File name is required")
+  //   .matches(/\.(zip|tar)$/)
+  //   .withMessage("File name should end with .zip or .tar"),
 ];
 
 app.post(
@@ -135,7 +135,7 @@ app.post(
     }
 
     try {
-      const compressedBuffer = await compressFiles(req.files, req.body.format);
+      const compressedBuffer = await compressFiles(req.files);
       const dirName = `${req.body.username}_uploads`;
       let desiredFileName = req.body.desiredFileName;
       const uniqueFileName = await getUniqueFileName(desiredFileName);
