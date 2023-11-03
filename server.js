@@ -1,4 +1,5 @@
 const AWS = require('aws-sdk');
+const { v4: uuidv4 } = require('uuid');  
 const dotenv = require('dotenv');
 dotenv.config();
 const express = require("express");
@@ -13,6 +14,7 @@ const { compressFiles, getUniqueFileName } = require("../SQS/utilities");
 const { check, validationResult } = require("express-validator");
 const SQS = new AWS.SQS();
 const QUEUE_URL = process.env.SQS_QUEUE_URL; 
+
 
 
 app.use(express.json());
@@ -109,9 +111,9 @@ app.post("/login", async (req, res) => {
 
 const uploadValidations = [
   check("username").notEmpty().withMessage("Username is required"),
-  // check("format")
-  //   .isIn(["zip", "tar"])
-  //   .withMessage("Invalid compression format"),
+  check("format")
+    .isIn(["7z"])
+    .withMessage("Invalid compression format"),
   // check("desiredFileName")
   //   .notEmpty()
   //   .withMessage("File name is required")
@@ -162,8 +164,8 @@ const uploadValidations = [
 //   }
 // );
 
-async function uploadToTemporaryS3(file) {
-  const filePath = `TemporaryFiles/${file.originalname}`;
+async function uploadToTemporaryS3(file, directory) {
+  const filePath = directory + file.originalname;
   await S3.upload({
     Bucket: process.env.AWS_BUCKET,
     Key: filePath,
@@ -171,6 +173,38 @@ async function uploadToTemporaryS3(file) {
   }).promise();
   return filePath;
 }
+
+// app.post("/upload", upload.array("files"), uploadValidations, async (req, res) => {
+//   const errors = validationResult(req);
+//   if (!errors.isEmpty()) {
+//     console.log("Validation errors:", errors.array());
+//     return res.status(400).json({ errors: errors.array() });
+//   }
+
+//   if (!req.files || req.files.length === 0) {
+//     return res.status(400).send("No files uploaded.");
+//   }
+
+//   try {
+//     const fileReferences = await Promise.all(req.files.map(uploadToTemporaryS3));
+
+//     const sqsMessage = {
+//       QueueUrl: QUEUE_URL,
+//       MessageBody: JSON.stringify({
+//         files: fileReferences,
+//         username: req.body.username,
+//         desiredFileName: req.body.desiredFileName
+//       })
+//     };
+
+//     await SQS.sendMessage(sqsMessage).promise();
+//     res.status(200).send("Files received. Compression will start shortly.");
+//   } catch (error) {
+//     console.error("Error:", error);
+//     res.status(500).send("Server error.");
+//   }
+// });
+
 
 app.post("/upload", upload.array("files"), uploadValidations, async (req, res) => {
   const errors = validationResult(req);
@@ -183,8 +217,12 @@ app.post("/upload", upload.array("files"), uploadValidations, async (req, res) =
     return res.status(400).send("No files uploaded.");
   }
 
+  // Create a unique directory for each upload based on username and a UUID
+  const uniqueDir = `TemporaryFiles/${req.body.username}_${uuidv4()}/`;
+
   try {
-    const fileReferences = await Promise.all(req.files.map(uploadToTemporaryS3));
+    // Modify the uploadToTemporaryS3 function to use the unique directory
+    const fileReferences = await Promise.all(req.files.map(file => uploadToTemporaryS3(file, uniqueDir)));
 
     const sqsMessage = {
       QueueUrl: QUEUE_URL,
